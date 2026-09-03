@@ -1,0 +1,73 @@
+# =============================================================================
+# X-Wrt R3 精简固件 —— 种子配置（diffconfig 风格）
+#
+# 用法：build.sh 会把它 cp 成源码树里的 .config，然后执行 `make defconfig`
+#       补齐其余默认值。因此这里只写"我们要改的开关"，不需要完整的 .config。
+#
+# 已核实的架构决策（详见 docs/research-notes.md，2026-09-04 核实）：
+#   * 源码基座    : x-wrt/x-wrt（master，本质 OpenWrt master fork）
+#   * 设备 token  : CONFIG_TARGET_ramips_mt7620_DEVICE_xiaomi_miwifi-r3
+#                   （位于 target/linux/ramips/image/mt7620.mk，NAND/UBI 布局）
+#   * 防火墙      : 保留 X-Wrt 默认 fw4/nftables，ssr-plus 走 Nftables 透明代理后端
+#   * SS 客户端   : shadowsocks-rust（helloworld v196 起纯 SS 节点统一调 sslocal，
+#                   官方已支持 mipsel+musl，默认特性含旧式流式加密，兼容性=libev 超集）
+#   * SSR 客户端  : shadowsocksr-libev（C 系，保留以兼容订阅里的 ssr:// 节点）
+#
+# 注意：
+#   1) 从"空构建只加清单"出发：凡是没在这里选中的 X-Wrt 附加包都不会进固件，
+#      （含所有云控/远程管理/上报类，清单见 config/remove-cloud.txt）。
+#   2) 本种子不含 X-Wrt 官方镜像那些"开箱即用"默认（admin/admin、X-WRT_XXXX 热点等），
+#      出的是 OpenWrt 干净默认：LuCI 在 http://192.168.1.1，root 无密码（首登请设置）。
+# =============================================================================
+
+# ---- 目标：ramips / mt7620 子目标 / 小米 R3 单设备 ---------------------------
+CONFIG_TARGET_ramips=y
+CONFIG_TARGET_ramips_mt7620=y
+CONFIG_TARGET_ramips_mt7620_DEVICE_xiaomi_miwifi-r3=y
+
+# 只编 R3 一个设备，rootfs 用 per-device 生成（省时、镜像小）
+CONFIG_TARGET_MULTI_PROFILE=n
+CONFIG_TARGET_PER_DEVICE_ROOTFS=y
+
+# ---- 防火墙：fw4 / nftables（X-Wrt 默认即是，ssr-plus v196 原生支持）--------
+CONFIG_PACKAGE_firewall4=y
+CONFIG_PACKAGE_nftables=y
+# 明确不用老 fw3/iptables 体系：
+CONFIG_PACKAGE_firewall=n
+
+# ---- DNS：默认 dnsmasq 换成 dnsmasq-full（ssr-plus 需要 nftset 支持）--------
+CONFIG_PACKAGE_dnsmasq=n
+CONFIG_PACKAGE_dnsmasq-full=y
+# dnsmasq-full 的 nftset 能力由 ssr-plus 的 "select dnsmasq_full_nftset" 自动开启
+
+# ---- LuCI（最小 WebUI）-----------------------------------------------------
+CONFIG_PACKAGE_luci=y
+# ssr-plus 需要的老 LuCI 兼容层/组件由它的 DEPENDS 自动拉入（luci-compat/lua/libuci-lua 等）
+CONFIG_PACKAGE_luci-theme-bootstrap=y
+# 中文界面（基础包）；可选再加 app 级语言包：
+# CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
+
+# ---- luci-app-ssr-plus（fw876/helloworld feed，v196）------------------------
+CONFIG_PACKAGE_luci-app-ssr-plus=y
+
+# 透明代理后端：用 Nftables（与 fw4 配套）。Makefile 默认规则：firewall4 存在时自动选此项，
+# 显式写出来防呆。Iptables 后端则留空（不要同时开，二者互斥 choice）。
+CONFIG_PACKAGE_luci-app-ssr-plus_Nftables_Transparent_Proxy=y
+
+# 客户端/服务端选择（针对 128MB RAM、只做"客户端出站代理"的精简目标）：
+CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Rust_Client=y   # 纯 SS 节点 => sslocal(rust)
+CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_NONE_Server=y   # 不需要在路由器上开 SS 服务端
+CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Client=y # ssr:// 节点 => ssr-local(C, 轻)
+CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Server=n # 不开 SSR 服务端
+CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_NONE_V2RAY=y                # 不编 v2ray/xray（R3 跑不动且用不上）
+
+# 其余重型可选组件（mihomo/mosdns/naiveproxy/shadow-tls/kcptun/3proxy/geodata…）
+# 在 mipsel 上默认就是 n，无需处理；Geodata 也别开（占闪存、需频繁更新）：
+
+# ---- 其它说明 ---------------------------------------------------------------
+# - 5G(MT7612E)/2.4G 驱动与 uboot-envtools 由设备定义 DEVICE_PACKAGES 自动带入
+#   （kmod-mt76x2 kmod-usb2 kmod-usb-ohci uboot-envtools），无需手动加。
+# - PPPoE/PPPoE 客户端等由 ramips router 默认包带入（DEFAULT_PACKAGES.router）。
+# - 构建期会按需自动选中：kmod-nft-socket/tproxy/nat、nftables-json、jq、curl、
+#   ip-full、coreutils-base64、lyaml、luci-compat、lua、libuci-lua、unzip、
+#   xz、dns2tcp、ipt2socks、microsocks、resolveip、nping 等（都是 ssr-plus 依赖）。

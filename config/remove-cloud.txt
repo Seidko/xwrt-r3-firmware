@@ -1,0 +1,44 @@
+# =============================================================================
+# "剔除/不选择"清单 —— X-Wrt 自带的云控 / 远程管理 / 上报 / 增值类组件
+#
+# 本项目采用"从空构建只加清单"策略：这些包在 .config 里【不会被选中】，因此
+# 默认就不会进入固件。本文件的作用是：
+#   1) 记录"为什么不要"（审计依据）；
+#   2) 防止将来手动 menuconfig 时误选；
+#   3) 刷机后可对照 `opkg list-installed` 自查，确认固件里确实没有它们。
+#
+# 来源：x-wrt/x-wrt 的专属 feed = x-wrt/com.x-wrt（feeds.conf.default 里的 `x` feed）
+# 核实日期：2026-09-04（com.x-wrt master 目录快照）
+# =============================================================================
+
+# ---- 云控 / 需连 X-Wrt 服务端的组件（重点）-----------------------------------
+luci-app-xwan                 # X-Wrt 多拨/云接口体系（需连其服务端做认证的家族根）
+luci-app-proxyxwan            # xwan 附属：HTTP/代理接入
+luci-app-pptpxwan             # xwan 附属：PPTP 接入
+xwan                            # 底层 xwan 工具（若被单独出现）
+rproxy                          # 反向代理客户端（主动连远端服务器）
+vhusbd-online                   # VirtualHere 在线模式（连其公网目录服务，商用收费）
+urllogger                       # URL/上网记录上报工具
+quectel-qconnect-manager        # 移远 CPE 远程管理（专用硬件件用）
+sendip                          # 网络探测发包工具（可被用来做"心跳/连通性上报"）
+telnetd-test                    # 远程诊断后门类脚本
+luci-app-natflow-users          # NAT 流表用户统计（流量画像上报类）
+natflow                         # natflow 内核态流表（与 natcap 同族）
+
+# ---- 组网增值（不需要，也牵扯其云端/复杂度）---------------------------------
+luci-app-fakemesh               # 免配 mesh（依赖其协议/服务器交互）
+fakemesh
+luci-app-natcap / natcap        # X-Wrt 自家 NAT 加速+简单管控（含用户体系/统计）
+luci-app-simplenetwork          # 简化网络配置向导
+luci-app-wizard                 # 首启向导（会顺带推 X-Wrt 服务/通知）
+luci-app-autoreboot             # 定时重启（非云控，只是不需要）
+base-config-setting             # X-Wrt 基础配置预设（会覆盖我们的干净默认值！）
+
+# ---- 自查命令 ----------------------------------------------------------------
+# 刷机后 SSH 到路由器执行：
+#   opkg list-installed | grep -Ei 'xwan|natcap|natflow|fakemesh|rproxy|urllogger|vhusbd|qconnect|sendip|wizard|simplenetwork'
+# 期望输出为空（base-files 等基础包不算）。
+#
+# 注意：X-Wrt 官方的"远程管理界面"入口多数由上述包提供；我们既然一个都不装，
+#      就不存在"路由器主动连 X-Wrt 服务端"的通道。若日后想加回某个功能，请逐个
+#      评估其网络行为，不要整包批量加。

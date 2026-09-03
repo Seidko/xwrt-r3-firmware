@@ -1,0 +1,142 @@
+name: Build X-Wrt R3 firmware
+
+# =============================================================================
+# 小米路由器 R3 (Xiaomi MiWiFi R3, MT7620A / NAND) X-Wrt 自编译 workflow
+#
+# 本仓库是"独立 overlay 仓库"：每次构建时克隆 x-wrt/x-wrt 源码 -> 灌入本仓库的
+# feeds/config 定制 -> 在 GitHub Actions 上完整编译 -> 上传固件产物。
+#
+# 触发方式：
+#   1) workflow_dispatch：网页上点 "Run workflow"，可选填 X-Wrt 源码 ref 与 Release 标签
+#   2) push：改动 config/ feeds/ scripts/ workflow 时自动触发
+#   3) schedule：每周六自动用最新 X-Wrt master 重编（可自行删掉这节）
+#
+# 参考文档：见仓库根目录 README.md
+# =============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      xwrt_ref:
+        description: 'X-Wrt 源码 ref（分支名或完整 commit SHA，默认 master）'
+        required: false
+        default: 'master'
+        type: string
+      release_tag:
+        description: '可选：发布到 GitHub Release 的标签（留空则只传 artifact）'
+        required: false
+        default: ''
+        type: string
+  push:
+    branches: [main, master]
+    paths:
+      - 'config/**'
+      - 'feeds/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+
+env:
+  XWRT_REPO: https://github.com/x-wrt/x-wrt.git
+  XWRT_REF: ${{ inputs.xwrt_ref || 'master' }}
+  # 与源码树无关的构建缓存 key 前缀（想整体换缓存就改这里）
+  CACHE_PREFIX: xwrt-r3
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: 检出 overlay 仓库（本仓库）
+        uses: actions/checkout@v4
+
+      - name: 估算缓存失效日期（周粒度，避免 cache 无限膨胀）
+        id: date
+        run: echo "week=$(date -u +%Y-W%W)" >> "$GITHUB_OUTPUT"
+
+      # 缓存策略：只缓存【构建产物态】目录（dl/ 下载、staging_dir 交叉工具链+rust 宿主、
+      # build_dir 编译中间件、toolchain），不缓存源码 .git 与 feeds（每次都重拉，保证跟最新）。
+      # 首跑全量编译（含 Rust 宿主工具链）很慢；命中缓存后仅增量，二次构建快很多。
+      # 若嫌体积大，可只留 dl/ 一条。
+      - name: 恢复构建缓存（dl + 工具链 + 中间件）
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            source/dl
+            source/staging_dir
+            source/build_dir
+            source/toolchain
+          key: ${{ env.CACHE_PREFIX }}-${{ env.XWRT_REF }}-${{ steps.date.outputs.week }}
+          restore-keys: |
+            ${{ env.CACHE_PREFIX }}-${{ env.XWRT_REF }}-
+
+      - name: 安装 OpenWrt 编译依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential clang flex bison gawk gettext git \
+            libncurses-dev libssl-dev python3 python3-setuptools \
+            rsync swig unzip zlib1g-dev file wget curl time
+
+      - name: 准备源码 + feeds + 生成 .config
+        env:
+          XWRT_REF: ${{ env.XWRT_REF }}
+        run: |
+          bash scripts/build.sh prepare
+        # prepare 阶段生成 source/.config、feeds 就位、defconfig 完成
+
+      - name: 校验 .config 关键项（防静默跑偏）
+        run: |
+          cd source
+          for sym in \
+            CONFIG_TARGET_ramips_mt7620_DEVICE_xiaomi_miwifi-r3 \
+            CONFIG_PACKAGE_luci \
+            CONFIG_PACKAGE_dnsmasq-full \
+            CONFIG_PACKAGE_luci-app-ssr-plus \
+            CONFIG_PACKAGE_luci-app-ssr-plus_Nftables_Transparent_Proxy \
+            CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Rust_Client \
+            CONFIG_PACKAGE_firewall4
+          do
+            grep -q "^${sym}=y" .config || { echo "!! .config 缺少关键项: ${sym}"; exit 1; }
+          done
+          echo "== .config 校验通过 =="
+          grep -E '^(CONFIG_TARGET_ramips|CONFIG_PACKAGE_luci-app-ssr-plus|CONFIG_PACKAGE_dnsmasq|CONFIG_PACKAGE_firewall)' .config || true
+
+      - name: 编译（预下载 + 全量 make）
+        run: |
+          bash scripts/build.sh make
+
+      - name: 保存构建缓存（含 rust 工具链，命中后大幅提速）
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            source/dl
+            source/staging_dir
+            source/build_dir
+            source/toolchain
+          key: ${{ env.CACHE_PREFIX }}-${{ env.XWRT_REF }}-${{ steps.date.outputs.week }}
+
+      - name: 收集固件产物
+        id: artifacts
+        run: |
+          mkdir -p artifact
+          cp source/bin/targets/ramips/mt7620/sha256sums artifact/ 2>/dev/null || true
+          cp source/bin/targets/ramips/mt7620/*xiaomi_miwifi-r3* artifact/ 2>/dev/null || true
+          ls -la artifact
+          echo "files=$(ls artifact | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: 上传固件 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xwrt-r3-${{ env.XWRT_REF }}-${{ github.run_number }}
+          path: artifact/
+          if-no-files-found: error
+
+      - name: （可选）发布 GitHub Release
+        if: ${{ inputs.release_tag != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          files: artifact/*
+          generate_release_notes: false

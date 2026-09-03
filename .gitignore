@@ -1,0 +1,10 @@
+# 本地构建产物与源码（若在 Linux/WSL 上本地编译时会生成）
+source/
+dl/
+build_dir/
+staging_dir/
+toolchain/
+tmp/
+bin/
+build.log
+.config
