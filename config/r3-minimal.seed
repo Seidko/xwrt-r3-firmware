@@ -65,6 +65,11 @@ CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Client=y # ssr:// �
 CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Server=n # 不开 SSR 服务端
 CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_NONE_V2RAY=y                # 不编 v2ray/xray（R3 跑不动且用不上）
 
+# v192 的 simple-obfs 选项默认 y（会拉 simple-obfs-client），但其 git 源打包 hash 在 v192 是坏的，
+# 构建必挂；普通 SS 订阅用不到 obfs 混淆，显式关掉（v193+ 上游也已改默认 n）。
+CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Simple_Obfs=n
+CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_V2ray_Plugin=n  # 显式保险（v192 默认 n）
+
 # 其余重型可选组件（mihomo/mosdns/naiveproxy/shadow-tls/kcptun/3proxy/geodata…）
 # 在 mipsel 上默认就是 n，无需处理；Geodata 也别开（占闪存、需频繁更新）：
 
