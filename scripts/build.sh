@@ -111,9 +111,11 @@ do_make() {
 
   log "开始编译：JOBS=${JOBS}，日志写入 build.log"
   if ! ( cd "$SOURCE_DIR" && make -j"$JOBS" V=s > "$TOP/build.log" 2>&1 ); then
-    echo "===== 编译失败，build.log 末尾 200 行 ====="
-    tail -200 "$TOP/build.log" || true
-    die "编译失败，详见 $TOP/build.log"
+    echo "===== 编译失败：错误定位（行号: 内容 + 下文）====="
+    grep -n -A8 -E 'ERROR:|error:|Error [0-9]+|failed to build|No rule to make' "$TOP/build.log" | tail -160 || true
+    echo "===== build.log 末尾 60 行 ====="
+    tail -60 "$TOP/build.log" || true
+    die "编译失败；完整日志 build.log 已由 workflow 上传为 artifact（build-log）"
   fi
 
   log "编译完成，产物："

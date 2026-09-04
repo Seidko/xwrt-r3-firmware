@@ -132,6 +132,14 @@ jobs:
           path: artifact/
           if-no-files-found: error
 
+      - name: 上传完整构建日志（失败时排障用）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
+
       - name: （可选）发布 GitHub Release
         if: ${{ inputs.release_tag != '' }}
         uses: softprops/action-gh-release@v2
