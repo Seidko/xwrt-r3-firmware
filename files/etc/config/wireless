@@ -1,0 +1,41 @@
+# X-Wrt R3 自定义默认无线配置（本项目 overlay）
+#
+# 背景：X-Wrt master 首次启动自动生成的 wireless 配置会把两个 AP 接口都置为
+# disabled='1'（留待 LuCI 启用），导致"蓝灯亮但 WLAN 不起来"。
+# 本文件在构建时注入 $(TOPDIR)/files，随镜像出厂即为"已启用"，全新刷入即出 WiFi。
+# （radio 路径取自实机 /sys 枚举：radio0=pcie MT7612E(5G)，radio1=platform wmac(2.4G)）
+#
+# 注意：默认开放网络无密码（SSID=OpenWrt），刷完请到 LuCI 设置密码；
+#       本文件仅影响"全新刷入"，升级保留配置时以你运行中的配置为准。
+
+config wifi-device 'radio0'
+	option type 'mac80211'
+	option path 'pci0000:00/0000:00:00.0/0000:01:00.0'
+	option band '5g'
+	option channel '36'
+	option htmode 'VHT80'
+	option disabled '0'
+
+config wifi-iface 'default_radio0'
+	option device 'radio0'
+	option network 'lan'
+	option mode 'ap'
+	option ssid 'OpenWrt'
+	option encryption 'none'
+	option disabled '0'
+
+config wifi-device 'radio1'
+	option type 'mac80211'
+	option path 'platform/10180000.wmac'
+	option band '2g'
+	option channel '1'
+	option htmode 'HT20'
+	option disabled '0'
+
+config wifi-iface 'default_radio1'
+	option device 'radio1'
+	option network 'lan'
+	option mode 'ap'
+	option ssid 'OpenWrt'
+	option encryption 'none'
+	option disabled '0'

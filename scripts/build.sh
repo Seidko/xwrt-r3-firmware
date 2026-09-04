@@ -103,6 +103,16 @@ prepare() {
   fi
   # 若日后重新启用 simple-obfs（默认已由种子置 n），同样需把其 hash b1ae62… 改为实际值 da5af0…
 
+  log "4.6/5 注入 files 覆盖层（默认启用双频 WiFi，SSID=OpenWrt）"
+  # X-Wrt master 首启自动生成的 wireless 配置会把 AP 接口置 disabled=1（留待 LuCI 启用），
+  # 表现为"蓝灯亮但 WLAN 不起来"。仓库 files/ 里带了已启用的 /etc/config/wireless，
+  # 复制到源码根 files/ 后，OpenWrt 构建会经 prepare_rootfs 自动并入 rootfs。
+  if [ -d "$TOP/files" ]; then
+    mkdir -p "$SOURCE_DIR/files"
+    cp -fpR "$TOP/files/." "$SOURCE_DIR/files/"
+    echo "  [files] $TOP/files -> $SOURCE_DIR/files（含 /etc/config/wireless 默认启用）"
+  fi
+
   log "5/5 写入种子配置并 make defconfig"
   [ -f "$CONFIG_SEED" ] || die "找不到种子配置: $CONFIG_SEED"
   cp "$CONFIG_SEED" "$SOURCE_DIR/.config"
