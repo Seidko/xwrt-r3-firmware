@@ -55,9 +55,10 @@ jobs:
         run: echo "week=$(date -u +%Y-W%W)" >> "$GITHUB_OUTPUT"
 
       # 缓存策略：只缓存【构建产物态】目录（dl/ 下载、staging_dir 交叉工具链+rust 宿主、
-      # build_dir 编译中间件、toolchain），不缓存源码 .git 与 feeds（每次都重拉，保证跟最新）。
-      # 首跑全量编译（含 Rust 宿主工具链）很慢；命中缓存后仅增量，二次构建快很多。
-      # 若嫌体积大，可只留 dl/ 一条。
+      # build_dir 编译中间件），不缓存源码 .git 与 feeds（每次都重拉，保证跟最新）。
+      # 注意：不要缓存 source/toolchain —— X-Wrt 源码顶层自带 toolchain/（gcc 补丁等），
+      # 恢复缓存会与重新 checkout 的源码冲突（git 报 Aborting）。工具链产物在 staging_dir/toolchain-*。
+      # 首跑全量编译很慢；命中缓存后仅增量，二次构建快很多。若嫌体积大，可只留 dl/ 一条。
       - name: 恢复构建缓存（dl + 工具链 + 中间件）
         uses: actions/cache/restore@v4
         with:
@@ -65,7 +66,6 @@ jobs:
             source/dl
             source/staging_dir
             source/build_dir
-            source/toolchain
           key: ${{ env.CACHE_PREFIX }}-${{ env.XWRT_REF }}-${{ steps.date.outputs.week }}
           restore-keys: |
             ${{ env.CACHE_PREFIX }}-${{ env.XWRT_REF }}-
@@ -106,7 +106,7 @@ jobs:
         run: |
           bash scripts/build.sh make
 
-      - name: 保存构建缓存（含 rust 工具链，命中后大幅提速）
+      - name: 保存构建缓存（命中后大幅提速）
         if: always()
         uses: actions/cache/save@v4
         with:
@@ -114,7 +114,6 @@ jobs:
             source/dl
             source/staging_dir
             source/build_dir
-            source/toolchain
           key: ${{ env.CACHE_PREFIX }}-${{ env.XWRT_REF }}-${{ steps.date.outputs.week }}
 
       - name: 收集固件产物
