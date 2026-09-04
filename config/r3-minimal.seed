@@ -37,6 +37,13 @@ CONFIG_PACKAGE_nftables=y
 # 明确不用老 fw3/iptables 体系：
 CONFIG_PACKAGE_firewall=n
 
+# ---- 旁路由 AP 透明代理（bridge netfilter）---------------------------------
+# 拓扑：R3 与主路由同 SSID 漫游、同网段桥接；连 R3 无线的设备流量以 L2 桥接穿过 R3。
+# 默认 nftables 三层钩子看不到桥接流，需 br_netfilter + net.bridge.bridge-nf-call-*=1，
+# 让跨桥 IPv4/IPv6 包也走三层 prerouting，ssr-plus 才能只代理"从 R3 无线进来"的流量
+# （主路由侧设备流量不进 R3，天然不受影响）。sysctl 见 files/etc/sysctl.d/11-bridge-nf.conf。
+CONFIG_PACKAGE_kmod-br-netfilter=y
+
 # ---- DNS：默认 dnsmasq 换成 dnsmasq-full（ssr-plus 需要 nftset 支持）--------
 CONFIG_PACKAGE_dnsmasq=n
 CONFIG_PACKAGE_dnsmasq-full=y
