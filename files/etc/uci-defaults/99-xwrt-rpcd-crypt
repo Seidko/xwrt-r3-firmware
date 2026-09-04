@@ -1,0 +1,33 @@
+#!/bin/sh
+# 修复 X-Wrt 默认 rpcd 登录密码格式（"刚刷完改不了 web 密码"）
+#
+# 背景：base-config-setting 的 95-base-config-setting 首启把 rpcd 登录密码存成
+# '$p$<login>'（纯文本标记，默认口令 = 用户名）。而 X-Wrt LuCI 改密页的旧密码
+# 校验（x-wrt/luci modules/luci-base/.../rpcd/ucode/luci 的 check_oldpwd）是用
+# `uhttpd -m <旧密码>` 生成的 crypt 哈希与存储值做字符串比较 → 纯文本 '$p$xxx'
+# 永远不匹配 crypt，导致【默认态下第一次改密必报"更改系统密码失败"】。
+# （2026-09-04 实机复现 + 用 luci.setPassword 验证：存值归一化为 crypt 后即正常）
+#
+# 本脚本排在 95 之后运行：凡 rpcd login 段仍为 '$p$' 纯文本默认的，改存为
+# `uhttpd -m <login>` 的 crypt 值。登录口令不变（仍是默认值），但改密页开箱即用。
+# 已非 '$p$' 前缀的（用户已通过页面改过、已是 crypt）一律跳过，不覆盖。
+[ -x /usr/sbin/uhttpd ] || exit 0
+
+changed=0
+for sec in $(uci -q show rpcd 2>/dev/null | sed -n "s/^rpcd\.\([^=]*\)\.username=.*/\1/p" | sort -u); do
+	user="$(uci -q get "rpcd.$sec.username" 2>/dev/null)"
+	[ -n "$user" ] && [ "$user" != "root" ] || continue
+	old="$(uci -q get "rpcd.$sec.password" 2>/dev/null)"
+	case "$old" in
+		'$p$'*) ;;
+		*) continue ;;
+	esac
+	crypt="$(/usr/sbin/uhttpd -m "$user" 2>/dev/null)"
+	[ -n "$crypt" ] || continue
+	uci -q set "rpcd.$sec.password=$crypt"
+	changed=1
+done
+
+[ "$changed" = 1 ] && uci -q commit rpcd
+
+exit 0
