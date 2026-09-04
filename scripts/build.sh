@@ -55,10 +55,15 @@ prepare() {
     log "   源码目录已存在，跳过 clone（若需强制重拉请删除 ${SOURCE_DIR}）"
   fi
 
-  log "2/5 注入 helloworld feed（fw876/helloworld = luci-app-ssr-plus 现役仓库）"
+  log "2/5 注入 helloworld feed（fw876/helloworld = luci-app-ssr-plus）"
   local fc="$SOURCE_DIR/feeds.conf.default"
+  # 本分支（v192-libev）：固定到 v192（579d793，2026-05-03 "drop Shadowsocks Libev support" 之前），
+  # 该版本同时支持【libev SS 客户端 + nftables/fw4 后端】，SS 客户端可走 C 系 shadowsocks-libev(ss-local)。
+  # main 分支（v196/rust）不设此 pin，跟随 dev 最新；想临时换 pin 可设 HELLOWORLD_PIN。
+  local hw_pin="${HELLOWORLD_PIN:-579d7933283f55c952e7fa8ee0f01115f9290286}"
+  local hw_url="https://github.com/fw876/helloworld.git"
   grep -q '^src-git[[:space:]]*helloworld' "$fc" 2>/dev/null || \
-    printf '\n# Added by xwrt-r3-firmware overlay (2026-09): luci-app-ssr-plus feed\nsrc-git helloworld https://github.com/fw876/helloworld.git\n' >> "$fc"
+    printf '\n# Added by xwrt-r3-firmware overlay (v192-libev): luci-app-ssr-plus feed pinned %s\nsrc-git helloworld %s^%s\n' "$hw_pin" "$hw_url" "$hw_pin" >> "$fc"
   cat "$fc"
 
   log "3/5 feeds update + install"

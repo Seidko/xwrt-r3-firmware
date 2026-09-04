@@ -28,7 +28,7 @@ on:
         default: ''
         type: string
   push:
-    branches: [main, master]
+    branches: [main, master, v192-libev]
     paths:
       - 'config/**'
       - 'feeds/**'
@@ -94,7 +94,7 @@ jobs:
             CONFIG_PACKAGE_dnsmasq-full \
             CONFIG_PACKAGE_luci-app-ssr-plus \
             CONFIG_PACKAGE_luci-app-ssr-plus_Nftables_Transparent_Proxy \
-            CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Rust_Client \
+            CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Libev_Client \
             CONFIG_PACKAGE_firewall4
           do
             grep -q "^${sym}=y" .config || { echo "!! .config 缺少关键项: ${sym}"; exit 1; }

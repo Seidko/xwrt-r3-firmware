@@ -4,14 +4,16 @@
 # 用法：build.sh 会把它 cp 成源码树里的 .config，然后执行 `make defconfig`
 #       补齐其余默认值。因此这里只写"我们要改的开关"，不需要完整的 .config。
 #
-# 已核实的架构决策（详见 docs/research-notes.md，2026-09-04 核实）：
+# 已核实的架构决策（详见 docs/research-notes.md）—— 本分支 = v192-libev：
 #   * 源码基座    : x-wrt/x-wrt（master，本质 OpenWrt master fork）
 #   * 设备 token  : CONFIG_TARGET_ramips_mt7620_DEVICE_xiaomi_miwifi-r3
 #                   （位于 target/linux/ramips/image/mt7620.mk，NAND/UBI 布局）
 #   * 防火墙      : 保留 X-Wrt 默认 fw4/nftables，ssr-plus 走 Nftables 透明代理后端
-#   * SS 客户端   : shadowsocks-rust（helloworld v196 起纯 SS 节点统一调 sslocal，
-#                   官方已支持 mipsel+musl，默认特性含旧式流式加密，兼容性=libev 超集）
-#   * SSR 客户端  : shadowsocksr-libev（C 系，保留以兼容订阅里的 ssr:// 节点）
+#   * SS 客户端   : shadowsocks-libev（C 系 ss-local）—— helloworld 锁 v192(579d793) 实现，
+#                   v196 起上游已删 libev 客户端只留 rust；v192 对 mipsel 默认即 libev。
+#                   （体积与构建时间都远优于 rust，代价=helloworld 停更在 2026-05-03）
+#   * SSR 客户端  : shadowsocksr-libev（C 系，兼容订阅里的 ssr:// 节点）
+#   * main 分支    : v196/rust（滚动更新），与此分支差异仅在 feeds pin 与下列客户端选项
 #
 # 注意：
 #   1) 从"空构建只加清单"出发：凡是没在这里选中的 X-Wrt 附加包都不会进固件，
@@ -55,7 +57,9 @@ CONFIG_PACKAGE_luci-app-ssr-plus=y
 CONFIG_PACKAGE_luci-app-ssr-plus_Nftables_Transparent_Proxy=y
 
 # 客户端/服务端选择（针对 128MB RAM、只做"客户端出站代理"的精简目标）：
-CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Rust_Client=y   # 纯 SS 节点 => sslocal(rust)
+# SS 客户端用 C 系 libev（本分支默认）。v192 的 choice 对非 x86/arm64 默认就是 libev，显式写出来防呆。
+CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_Libev_Client=y   # 纯 SS 节点 => ss-local(libev, C)
+# （v196 分支此处为 INCLUDE_Shadowsocks_Rust_Client=y；两选项互斥，别同时开）
 CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Shadowsocks_NONE_Server=y   # 不需要在路由器上开 SS 服务端
 CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Client=y # ssr:// 节点 => ssr-local(C, 轻)
 CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_ShadowsocksR_Libev_Server=n # 不开 SSR 服务端
