@@ -46,10 +46,14 @@ CONFIG_PACKAGE_dnsmasq-full=y
 CONFIG_PACKAGE_luci=y
 # ssr-plus 需要的老 LuCI 兼容层/组件由它的 DEPENDS 自动拉入（luci-compat/lua/libuci-lua 等）
 CONFIG_PACKAGE_luci-theme-bootstrap=y
-# 中文界面（基础包）；可选再加 app 级语言包：
-# CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
+# ---- 全量中文界面（全局开关）-----------------------------------------------
+# luci.mk：luci-base 的 Translations 菜单定义 LUCI_LANG_<lang>，凡是带 po/zh-cn 的
+# luci 包（base/mod/*/app/firewall/package-manager/ssr-plus…）都会自动生成并默认
+# 安装对应的 luci-i18n-<name>-zh-cn，无需逐个枚举；未来新增 luci 包也自动覆盖。
+# 若要同时给繁体/其它语言，可再加 CONFIG_LUCI_LANG_zh_Hant=y 等。
+CONFIG_LUCI_LANG_zh_Hans=y
 
-# ---- luci-app-ssr-plus（fw876/helloworld feed，v196）------------------------
+# ---- luci-app-ssr-plus（fw876/helloworld feed，本分支锁定 v192）-------------
 CONFIG_PACKAGE_luci-app-ssr-plus=y
 
 # 透明代理后端：用 Nftables（与 fw4 配套）。Makefile 默认规则：firewall4 存在时自动选此项，
