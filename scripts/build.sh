@@ -90,6 +90,19 @@ prepare() {
     done
   fi
 
+  log "4.5/5 修正 helloworld@v192 的 git-submodule 打包 hash（X-Wrt master 特有）"
+  # 背景：helloworld v192 里 shadowsocks-libev / simple-obfs 用 git 源 + PKG_MIRROR_HASH，
+  # 该 hash 是维护者在【旧版 OpenWrt（打包不含 git submodule）】下计算的。
+  # X-Wrt master 的新下载器会把 submodule（libbloom/libcork/libipset 等）一起 clone 打包，
+  # 因此实际 tar 的 hash 必然与声明值不符（CI 报 Hash mismatch: expected b3898a… got 9d2293…）。
+  # 打包是确定性的（固定 commit + mtime + 排序），故把声明值改为实际值即可稳定通过校验。
+  local ssl_mk="$SOURCE_DIR/package/feeds/helloworld/shadowsocks-libev/Makefile"
+  if [ -f "$ssl_mk" ]; then
+    sed -i 's/b3898ad0a557bc8b0bbb2f3888101d461944239b0b7d4d4c6f164d73694a4595/9d2293f16629d1e30ede304ccddbaaa4e922c1c5e7ea04cef0e9d274aafa6109/g' "$ssl_mk"
+    echo "  [patch] shadowsocks-libev PKG_MIRROR_HASH -> 9d2293…（含 submodule 的实际打包值）"
+  fi
+  # 若日后重新启用 simple-obfs（默认已由种子置 n），同样需把其 hash b1ae62… 改为实际值 da5af0…
+
   log "5/5 写入种子配置并 make defconfig"
   [ -f "$CONFIG_SEED" ] || die "找不到种子配置: $CONFIG_SEED"
   cp "$CONFIG_SEED" "$SOURCE_DIR/.config"
