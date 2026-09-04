@@ -33,7 +33,13 @@ on:
       - 'config/**'
       - 'feeds/**'
       - 'scripts/**'
+      - 'files/**'
       - '.github/workflows/**'
+
+# 同一分支的新推送自动取消仍在跑的旧构建，避免快速连推叠跑浪费配额
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   XWRT_REPO: https://github.com/x-wrt/x-wrt.git
@@ -66,9 +72,10 @@ jobs:
             source/dl
             source/staging_dir
             source/build_dir
-          key: ${{ env.CACHE_PREFIX }}-${{ env.XWRT_REF }}-${{ steps.date.outputs.week }}
+          # key 含分支：main 与 v192-libev 的 .config 不同，避免跨分支错配 staging_dir/build_dir
+          key: ${{ env.CACHE_PREFIX }}-${{ env.XWRT_REF }}-${{ github.ref_name }}-${{ steps.date.outputs.week }}
           restore-keys: |
-            ${{ env.CACHE_PREFIX }}-${{ env.XWRT_REF }}-
+            ${{ env.CACHE_PREFIX }}-${{ env.XWRT_REF }}-${{ github.ref_name }}-
 
       - name: 安装 OpenWrt 编译依赖
         run: |
@@ -99,6 +106,9 @@ jobs:
           do
             grep -q "^${sym}=y" .config || { echo "!! .config 缺少关键项: ${sym}"; exit 1; }
           done
+          # 中文界面：全局开关生效 + 至少有一个 luci 中文包被选中（证明 i18n 默认机制工作）
+          grep -q '^CONFIG_LUCI_LANG_zh_Hans=y' .config || { echo "!! 缺少 CONFIG_LUCI_LANG_zh_Hans=y"; exit 1; }
+          grep -qE '^CONFIG_PACKAGE_luci-i18n-.*-zh-cn=y' .config || { echo "!! 没有任何 luci-i18n-*-zh-cn 被选中"; exit 1; }
           echo "== .config 校验通过 =="
           grep -E '^(CONFIG_TARGET_ramips|CONFIG_PACKAGE_luci-app-ssr-plus|CONFIG_PACKAGE_dnsmasq|CONFIG_PACKAGE_firewall)' .config || true
 
@@ -114,7 +124,7 @@ jobs:
             source/dl
             source/staging_dir
             source/build_dir
-          key: ${{ env.CACHE_PREFIX }}-${{ env.XWRT_REF }}-${{ steps.date.outputs.week }}
+          key: ${{ env.CACHE_PREFIX }}-${{ env.XWRT_REF }}-${{ github.ref_name }}-${{ steps.date.outputs.week }}
 
       - name: 收集固件产物
         id: artifacts
